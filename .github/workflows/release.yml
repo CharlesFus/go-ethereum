@@ -53,7 +53,7 @@ jobs:
           if [ "${{ matrix.arch }}" != "amd64" ]; then
             arch_flag="-arch ${{ matrix.arch }}"
           fi
-          go run build/ci.go install -dlgo $arch_flag $cc_flag
+          go run build/ci.go install -dlgo -git-tag "${{ github.ref_name }}" $arch_flag $cc_flag
 
       - name: Create archive
         run: |
@@ -61,7 +61,7 @@ jobs:
           if [ "${{ matrix.arch }}" != "amd64" ]; then
             arch_flag="-arch ${{ matrix.arch }}"
           fi
-          go run build/ci.go archive $arch_flag -type tar
+          go run build/ci.go archive -git-tag "${{ github.ref_name }}" $arch_flag -type tar
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -93,13 +93,13 @@ jobs:
         run: |
           set PATH=C:\msys64\mingw64\bin;%PATH%
           C:\msys64\mingw64\bin\gcc.exe --version
-          go run build/ci.go install -dlgo -arch amd64 -cc C:\msys64\mingw64\bin\gcc.exe
+          go run build/ci.go install -dlgo -git-tag %GITHUB_REF_NAME% -arch amd64 -cc C:\msys64\mingw64\bin\gcc.exe
 
       - name: Create archive
         shell: cmd
         run: |
           set PATH=C:\msys64\mingw64\bin;%PATH%
-          go run build/ci.go archive -arch amd64 -type zip
+          go run build/ci.go archive -git-tag %GITHUB_REF_NAME% -arch amd64 -type zip
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
