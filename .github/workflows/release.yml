@@ -160,13 +160,15 @@ jobs:
             BUILDNUM=${{ github.run_number }}
 
   # ---------------------------------------------------------------------------
-  # Create GitHub Release draft with all binary artifacts
+  # Create GitHub Release draft
   # ---------------------------------------------------------------------------
   release:
     needs: [build-linux, build-windows, build-docker]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Download Linux artifacts
         uses: actions/download-artifact@v4
@@ -182,14 +184,68 @@ jobs:
           pattern: windows-*
           merge-multiple: true
 
-      - name: List artifacts
-        run: ls -lhR dist/
+      - name: Generate release notes
+        env:
+          TAG: ${{ github.ref_name }}
+          IMAGE: ghcr.io/${{ github.repository }}
+          SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          IMAGE_LOWER=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')
+          SHORT_SHA=${SHA::8}
+
+          # Generate SHA256 checksums
+          cd dist
+          sha256sum * > SHA256SUMS.txt
+          cd ..
+
+          # Build release body
+          {
+            echo "## What's Changed"
+            echo ""
+            echo "Security-patched release based on go-ethereum v1.15.10, with backported fixes for critical denial-of-service vulnerabilities."
+            echo ""
+            echo "## Docker"
+            echo ""
+            echo '```bash'
+            echo "docker pull ${IMAGE_LOWER}:${TAG}"
+            echo '```'
+            echo ""
+            echo "Available tags: \`${TAG}\`, \`stable\`, \`latest\`"
+            echo ""
+            echo "## Downloads"
+            echo ""
+            echo "| File | SHA256 |"
+            echo "|------|--------|"
+          } > release_body.md
+
+          cd dist
+          for f in $(ls -1 *.tar.gz *.zip 2>/dev/null | sort); do
+            hash=$(sha256sum "$f" | cut -d' ' -f1)
+            echo "| \`${f}\` | \`${hash:0:16}…\` |" >> ../release_body.md
+          done
+          cd ..
+
+          {
+            echo ""
+            echo "Full checksums available in \`SHA256SUMS.txt\` attached below."
+            echo ""
+            echo "## Build Info"
+            echo ""
+            echo "- **Base**: go-ethereum v1.15.10"
+            echo "- **Go**: 1.24.2 (via \`-dlgo\`)"
+            echo "- **Commit**: [\`${SHORT_SHA}\`](https://github.com/${REPO}/commit/${SHA})"
+          } >> release_body.md
+
+          echo "--- Generated release_body.md ---"
+          cat release_body.md
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           draft: true
-          generate_release_notes: true
+          body_path: release_body.md
           files: dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
