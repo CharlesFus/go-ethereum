@@ -14,7 +14,7 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Linux builds (amd64 + arm64 only)
+  # Linux builds (amd64 + arm64)
   # ---------------------------------------------------------------------------
   build-linux:
     runs-on: ubuntu-22.04
@@ -45,23 +45,23 @@ jobs:
 
       - name: Build
         run: |
-          cc_flag=""
-          arch_flag=""
+          CC_FLAG=""
+          ARCH_FLAG=""
           if [ -n "${{ matrix.cc }}" ]; then
-            cc_flag="-cc ${{ matrix.cc }}"
+            CC_FLAG="-cc ${{ matrix.cc }}"
           fi
           if [ "${{ matrix.arch }}" != "amd64" ]; then
-            arch_flag="-arch ${{ matrix.arch }}"
+            ARCH_FLAG="-arch ${{ matrix.arch }}"
           fi
-          go run build/ci.go install -dlgo -git-tag "${{ github.ref_name }}" $arch_flag $cc_flag
+          go run build/ci.go install -dlgo -git-tag "${{ github.ref_name }}" $ARCH_FLAG $CC_FLAG
 
       - name: Create archive
         run: |
-          arch_flag=""
+          ARCH_FLAG=""
           if [ "${{ matrix.arch }}" != "amd64" ]; then
-            arch_flag="-arch ${{ matrix.arch }}"
+            ARCH_FLAG="-arch ${{ matrix.arch }}"
           fi
-          go run build/ci.go archive -git-tag "${{ github.ref_name }}" $arch_flag -type tar
+          go run build/ci.go archive -git-tag "${{ github.ref_name }}" $ARCH_FLAG -type tar
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -70,7 +70,7 @@ jobs:
           path: geth-*.tar.gz
 
   # ---------------------------------------------------------------------------
-  # Windows build (amd64 only)
+  # Windows build (amd64)
   # ---------------------------------------------------------------------------
   build-windows:
     runs-on: windows-latest
@@ -148,6 +148,7 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
+          provenance: false
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: |
@@ -159,7 +160,7 @@ jobs:
             BUILDNUM=${{ github.run_number }}
 
   # ---------------------------------------------------------------------------
-  # Create GitHub Release draft
+  # Create GitHub Release draft with all binary artifacts
   # ---------------------------------------------------------------------------
   release:
     needs: [build-linux, build-windows, build-docker]
@@ -167,11 +168,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download all artifacts
+      - name: Download Linux artifacts
         uses: actions/download-artifact@v4
         with:
           path: dist
-          pattern: '{linux,windows}-*'
+          pattern: linux-*
+          merge-multiple: true
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: windows-*
           merge-multiple: true
 
       - name: List artifacts
